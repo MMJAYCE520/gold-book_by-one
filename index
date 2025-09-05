@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>珍奇百寶箱－文獻期望值計算器 v2</title>
+  <style>
+    :root{--bg:#0b1220;--card:#0f172a;--line:#263043;--fg:#e5e7eb;--muted:#93a3b8;--acc:#38bdf8;--good:#22c55e;--bad:#ef4444;--warn:#f59e0b}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 12px}
+    h2{font-size:18px;margin:0 0 8px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    input,button{background:#111827;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+    button{cursor:pointer}
+    button.primary{background:var(--acc);color:#02131e;border-color:transparent}
+    button.ghost{background:transparent}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:#111827}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border-bottom:1px dashed var(--line);padding:8px 6px;text-align:right}
+    th:first-child,td:first-child{text-align:left}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .muted{color:var(--muted)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .ok{color:var(--good)} .ng{color:var(--bad)} .mid{color:var(--warn)}
+    .small{font-size:13px}
+    .logline{border-left:3px solid var(--line);padding-left:10px;margin:8px 0}
+    @media (max-width:840px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>珍奇百寶箱－文獻期望值計算器 v2</h1>
+
+    <div class="card">
+      <div class="row">
+        <div class="pill">保底規則：每逢 <b>第10抽</b> 固定給文物（當次不會掉文獻/碎片）</div>
+        <div class="pill">上限：<b>3000 抽</b></div>
+        <div class="pill">兌換關係：<b>1 金 = 6 紫 = 36 藍 = 216 綠</b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>官方機率明細（文獻 25.092%）</h2>
+      <div class="grid">
+        <div>
+          <div class="pill">罕見（綠）</div>
+          <table class="mono small">
+            <tr><th>數量</th><th>機率</th></tr>
+            <tr><td>5</td><td>1.000%</td></tr>
+            <tr><td>10</td><td>1.000%</td></tr>
+            <tr><td>20</td><td>1.000%</td></tr>
+          </table>
+        </div>
+        <div>
+          <div class="pill">稀有（藍）</div>
+          <table class="mono small">
+            <tr><th>數量</th><th>機率</th></tr>
+            <tr><td>5</td><td>4.000%</td></tr>
+            <tr><td>10</td><td>4.000%</td></tr>
+            <tr><td>20</td><td>4.000%</td></tr>
+          </table>
+        </div>
+        <div>
+          <div class="pill">史詩（紫）</div>
+          <table class="mono small">
+            <tr><th>數量</th><th>機率</th></tr>
+            <tr><td>5</td><td>4.992%</td></tr>
+            <tr><td>10</td><td>4.000%</td></tr>
+            <tr><td>20</td><td>1.100%</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="muted small">註：以上九項機率合計 25.092%。其餘為非文獻（碎片／強化刷等）。</div>
+    </div>
+
+    <div class="card">
+      <h2>抽卡控制</h2>
+      <div class="row">
+        <label>本輪抽數（1–10）：
+          <input id="roundN" type="number" min="1" max="10" value="10"/>
+        </label>
+        <button class="primary" onclick="drawRound()">抽本輪</button>
+        <button class="ghost" onclick="resetAll()">重製</button>
+        <div class="pill mono">總抽數：<span id="totalDraws">0</span> / 3000</div>
+        <div class="pill mono">有效抽數（可出文獻）：<span id="effDraws">0</span></div>
+        <div class="pill mono">文獻包數：<span id="packCnt">0</span></div>
+      </div>
+      <div class="muted small">提示：每次最多 10 抽；達到 3000 抽後將自動禁止繼續抽。</div>
+    </div>
+
+    <div class="card" id="roundLog">
+      <h2>每輪結果</h2>
+      <div class="muted small">將在此列出每輪抽到的文獻（僅列文獻，不含保底文物與非文獻）。</div>
+    </div>
+
+    <div class="card" id="summary">
+      <h2>統計總表</h2>
+      <div class="grid">
+        <div>
+          <table class="mono">
+            <tr><th>項目</th><th>實際</th><th>期望</th><th>評價</th></tr>
+            <tr><td>綠書本數</td><td id="gReal">0</td><td id="gExp">0</td><td id="gTag">-</td></tr>
+            <tr><td>藍書本數</td><td id="bReal">0</td><td id="bExp">0</td><td id="bTag">-</td></tr>
+            <tr><td>紫書本數</td><td id="pReal">0</td><td id="pExp">0</td><td id="pTag">-</td></tr>
+            <tr><td>金書當量</td><td id="goldReal">0</td><td id="goldExp">0</td><td id="goldTag">-</td></tr>
+          </table>
+        </div>
+        <div>
+          <table class="mono small">
+            <tr><th>九項文獻</th><th>命中次數</th></tr>
+            <tr><td>綠×5</td><td id="c_G5">0</td></tr>
+            <tr><td>綠×10</td><td id="c_G10">0</td></tr>
+            <tr><td>綠×20</td><td id="c_G20">0</td></tr>
+            <tr><td>藍×5</td><td id="c_B5">0</td></tr>
+            <tr><td>藍×10</td><td id="c_B10">0</td></tr>
+            <tr><td>藍×20</td><td id="c_B20">0</td></tr>
+            <tr><td>紫×5</td><td id="c_P5">0</td></tr>
+            <tr><td>紫×10</td><td id="c_P10">0</td></tr>
+            <tr><td>紫×20</td><td id="c_P20">0</td></tr>
+          </table>
+        </div>
+        <div>
+          <div class="mono small">
+            <div>有效抽數（可出文獻）：<span id="eff2">0</span></div>
+            <div>單抽金書期望：<span id="muGold">0</span></div>
+            <div>單抽金書變異：<span id="varGold">0</span></div>
+            <div>金書標準差：<span id="sdGold">0</span></div>
+            <div class="muted">評價規則：以 <b>|Z|≥1</b> 判定高/低於預期；其餘視為等於預期。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ===== 參數（官方機率） =====
+const MAX_N = 3000;
+const BOOKS = [
+  {id:'G5',  p:0.01000, qty:5,  color:'G', name:'綠×5'},
+  {id:'G10', p:0.01000, qty:10, color:'G', name:'綠×10'},
+  {id:'G20', p:0.01000, qty:20, color:'G', name:'綠×20'},
+  {id:'B5',  p:0.04000, qty:5,  color:'B', name:'藍×5'},
+  {id:'B10', p:0.04000, qty:10, color:'B', name:'藍×10'},
+  {id:'B20', p:0.04000, qty:20, color:'B', name:'藍×20'},
+  {id:'P5',  p:0.04992, qty:5,  color:'P', name:'紫×5'},
+  {id:'P10', p:0.04000, qty:10, color:'P', name:'紫×10'},
+  {id:'P20', p:0.01100, qty:20, color:'P', name:'紫×20'},
+];
+const P_BOOK = BOOKS.reduce((s,x)=>s+x.p,0); // 0.25092
+const GOLD_PER = { G: 1/216, B: 1/36, P: 1/6 };
+
+// 規範化後（用於在命中文獻時選擇哪一個子項）
+const BOOKS_NORM = (()=>{
+  let acc=0; return BOOKS.map(x=>{ acc += x.p/P_BOOK; return {...x, cum:acc}; });
+})();
+
+// 預先計算單抽的金書期望、二階矩，用於 SD/區間
+let mu_gold=0, e2_gold=0; // 單抽
+BOOKS.forEach(x=>{ const g = x.qty*GOLD_PER[x.color]; mu_gold += x.p*g; e2_gold += x.p*g*g; });
+const var_gold_1 = e2_gold - mu_gold*mu_gold;
+
+// 單抽各色分佈（用於顏色本數的變異）
+function colorMoments(color){
+  const set = BOOKS.filter(x=>x.color===color);
+  const e1 = set.reduce((s,x)=>s + x.p*x.qty, 0);
+  const e2 = set.reduce((s,x)=>s + x.p*x.qty*x.qty, 0);
+  return {e1, e2, var1: e2 - e1*e1};
+}
+const M_G = colorMoments('G');
+const M_B = colorMoments('B');
+const M_P = colorMoments('P');
+
+// ===== 狀態 =====
+const S = {
+  totalDraws: 0,
+  effDraws: 0,
+  packs: 0, // 文獻包數
+  counts: Object.fromEntries(BOOKS.map(x=>[x.id,0])),
+};
+
+function effectiveDraws(N){ return N - Math.floor(N/10); }
+
+function resetAll(){
+  S.totalDraws = 0; S.effDraws = 0; S.packs = 0; BOOKS.forEach(x=>S.counts[x.id]=0);
+  document.getElementById('roundLog').innerHTML = `<h2>每輪結果</h2><div class="muted small">將在此列出每輪抽到的文獻（僅列文獻，不含保底文物與非文獻）。</div>`;
+  refresh();
+}
+
+function drawRound(){
+  const box = document.getElementById('roundN');
+  let n = Math.max(1, Math.min(10, Math.floor(+box.value||0)));
+  if(S.totalDraws>=MAX_N){ alert('已達 3000 抽上限'); return; }
+  if(S.totalDraws + n > MAX_N){ n = MAX_N - S.totalDraws; }
+
+  const roundCounts = Object.fromEntries(BOOKS.map(x=>[x.id,0]));
+  let roundPacks=0, roundGold=0, roundEff=0;
+
+  for(let i=0;i<n;i++){
+    S.totalDraws++;
+    if(S.totalDraws % 10 === 0){
+      // 保底文物：當次不抽文獻
+      continue;
+    }
+    S.effDraws++; roundEff++;
+    const u = Math.random();
+    if(u < P_BOOK){
+      S.packs++; roundPacks++;
+      // 選擇哪個文獻子項（以文獻內部的條件機率）
+      const v = Math.random();
+      let hit = BOOKS_NORM.find(x=> v < x.cum );
+      roundCounts[hit.id]++; S.counts[hit.id]++;
+      roundGold += hit.qty * GOLD_PER[hit.color];
+    }
+  }
+
+  // 輸出本輪明細
+  const items = BOOKS.filter(x=>roundCounts[x.id]>0)
+    .map(x=>`${x.name} × <b>${roundCounts[x.id]}</b>`).join('，') || '（本輪未命中文獻）';
+  const line = document.createElement('div');
+  line.className='logline mono';
+  line.innerHTML = `第 <b>${Math.ceil(S.totalDraws/n)}</b> 輪｜抽 <b>${n}</b> 次；有效 <b>${roundEff}</b> 次；文獻包數 <b>${roundPacks}</b> ｜ ${items}`;
+  document.getElementById('roundLog').appendChild(line);
+
+  refresh();
+}
+
+function refresh(){
+  // 顯示計數
+  document.getElementById('totalDraws').textContent = S.totalDraws;
+  document.getElementById('effDraws').textContent = S.effDraws;
+  document.getElementById('packCnt').textContent = S.packs.toLocaleString();
+
+  // 實際本數（顏色彙總）
+  const G = 5*S.counts.G5 + 10*S.counts.G10 + 20*S.counts.G20;
+  const B = 5*S.counts.B5 + 10*S.counts.B10 + 20*S.counts.B20;
+  const P = 5*S.counts.P5 + 10*S.counts.P10 + 20*S.counts.P20;
+  const goldReal = G*GOLD_PER.G + B*GOLD_PER.B + P*GOLD_PER.P;
+
+  // 期望值（依有效抽數）
+  const eff = S.effDraws;
+  const gExp = eff * M_G.e1, bExp = eff * M_B.e1, pExp = eff * M_P.e1;
+  const goldExp = eff * mu_gold;
+
+  // 變異/標準差
+  const sdG = Math.sqrt( eff * M_G.var1 );
+  const sdB = Math.sqrt( eff * M_B.var1 );
+  const sdP = Math.sqrt( eff * M_P.var1 );
+  const sdGold = Math.sqrt( eff * var_gold_1 );
+
+  // 評價（|Z|≥1 高/低，否則等於）
+  function tag(real, exp, sd){
+    if(sd <= 1e-12){ return '<span class="mid">-</span>'; }
+    const z = (real-exp)/sd;
+    if(z > 1) return `<span class="ok">高於預期 (Z=${z.toFixed(2)})</span>`;
+    if(z < -1) return `<span class="ng">低於預期 (Z=${z.toFixed(2)})</span>`;
+    return `<span class="mid">等於預期 (Z=${z.toFixed(2)})</span>`;
+  }
+
+  // 寫入統計表
+  const fmt = n => n.toLocaleString(undefined,{maximumFractionDigits:3});
+  document.getElementById('gReal').textContent = fmt(G);
+  document.getElementById('bReal').textContent = fmt(B);
+  document.getElementById('pReal').textContent = fmt(P);
+  document.getElementById('gExp').textContent  = fmt(gExp);
+  document.getElementById('bExp').textContent  = fmt(bExp);
+  document.getElementById('pExp').textContent  = fmt(pExp);
+  document.getElementById('goldReal').textContent = fmt(goldReal);
+  document.getElementById('goldExp').textContent  = fmt(goldExp);
+
+  document.getElementById('gTag').innerHTML = tag(G, gExp, sdG);
+  document.getElementById('bTag').innerHTML = tag(B, bExp, sdB);
+  document.getElementById('pTag').innerHTML = tag(P, pExp, sdP);
+  document.getElementById('goldTag').innerHTML = tag(goldReal, goldExp, sdGold);
+
+  // 次數表
+  ['G5','G10','G20','B5','B10','B20','P5','P10','P20'].forEach(id=>{
+    document.getElementById('c_'+id).textContent = S.counts[id].toLocaleString();
+  });
+
+  // 右側說明
+  document.getElementById('eff2').textContent = eff;
+  document.getElementById('muGold').textContent = mu_gold.toFixed(6);
+  document.getElementById('varGold').textContent = var_gold_1.toFixed(6);
+  document.getElementById('sdGold').textContent = sdGold.toFixed(3);
+}
+
+// 初始化
+resetAll();
+</script>
+</body>
+</html>
